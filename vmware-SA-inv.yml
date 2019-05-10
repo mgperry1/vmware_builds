@@ -1,0 +1,16 @@
+[vmware]
+vcenter01 ansible_host=vc-irv.techlab.com
+
+# [cluster1]
+# oralab1 ansible_host=oralab1
+# oralab2 ansible_host=oralab2
+# oralab3 ansible_host=oralab3
+
+[cluster1]
+muwriter-1-1
+muwriter-1-2
+muwriter-1-3
+
+[standalone]
+#dboralab02
+dboralab03

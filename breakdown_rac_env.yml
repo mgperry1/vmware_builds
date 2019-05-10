@@ -1,0 +1,110 @@
+- hosts: all
+  connection: local
+  gather_facts: false
+  order: sorted
+  vars:
+    #ansible_python_interpreter: "/usr/local/bin/python"
+    infoblox_provider:
+      host: "10.10.96.86"
+      username: "admin"
+      password: "Techno123!"
+    #python_input_file: "ip_structure.json"
+    python_input_file: "{{ cluster_name }}.json"
+    vcenter_username: "cdbass"
+    vcenter_password: "N35b32IM"
+    vcenter_hostname: "vc-irv.techlab.com"
+    #cluster_name: "scan-testing1"
+    cluster_nodes: "{{ ansible_play_hosts }}"
+    master_node: "{{ ansible_play_hosts | first }}"
+    slave_nodes: "{{ cluster_nodes | difference(master_node) }}"
+    test_pub_query: "VMs.public[*]"
+    test_vip_query: "VMs.vip[*]"
+    test_scan_query: "VMs.scan[*]"
+
+
+
+  tasks:
+    - name: lookup json file from python script
+      include_vars:
+        file: "./clusters/{{ python_input_file }}"
+        name: python_script_output
+      run_once: true
+
+    - name: Remove Slave Nodes
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        #cluster: "DC1_C1"
+        name: "{{ item }}"
+        force: yes
+        state: absent
+      delegate_to: localhost
+      register: facts
+      run_once: true
+      with_items: "{{slave_nodes}}"
+
+    # - name: Set the state of a Master VM to off
+    #   vmware_guest_powerstate:
+    #     hostname: "{{ vcenter_hostname }}"
+    #     username: "{{ vcenter_username }}"
+    #     password: "{{ vcenter_password }}"
+    #     validate_certs: no
+    #     #folder: "{{ vcenter_folder }}"
+    #     name: "{{ master_node }}"
+    #     state: powered-off
+    #   delegate_to: localhost
+    #   run_once: true
+
+    - name: Remove Master Node
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        #cluster: "DC1_C1"
+        name: "{{ item }}"
+        force: yes
+        state: absent
+      delegate_to: localhost
+      register: facts
+      run_once: true
+      with_items: "{{master_node}}"
+
+    - name: remove Public IP A Records for host
+      nios_a_record:
+        name: "{{ item.Hostname }}"
+        ipv4: "{{ item.IP }}"
+        state: absent
+        provider: "{{ infoblox_provider }}"
+      connection: local
+      with_items: "{{python_script_output | json_query (test_pub_query) }}"
+      run_once: true
+
+    - name: remove VIP IP A Records for host
+      nios_a_record:
+        name: "{{ item.Hostname }}"
+        ipv4: "{{ item.IP }}"
+        state: absent
+        provider: "{{ infoblox_provider }}"
+      connection: local
+      with_items: "{{python_script_output | json_query (test_vip_query) }}"
+      run_once: true
+
+    - name: remove Scan IP A Records for host
+      nios_a_record:
+        name: "{{ item.Hostname }}"
+        ipv4: "{{ item.IP }}"
+        state: absent
+        provider: "{{ infoblox_provider }}"
+      connection: local
+      with_items: "{{python_script_output | json_query (test_scan_query) }}"
+      run_once: true
+
+
+    - name: Ansible delete cluster data file
+      file:
+        path: "./clusters/{{ python_input_file }}"
+        state: absent
+      run_once: true

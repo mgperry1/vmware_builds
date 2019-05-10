@@ -1,0 +1,138 @@
+- hosts: all
+  connection: local
+  gather_facts: false
+  order: sorted
+  vars:
+    #ansible_python_interpreter: "/usr/local/bin/python"
+    infoblox_host: "10.10.96.86"
+    infoblox_username: "admin"
+    infoblox_password: "Techno123!"
+    subnet: "10.10.99.0"
+    private_subnet: "114"
+    network1: "vds-5k-core-vlan99"
+    network2: "vds-5k-core-vlan114"
+    vcenter_username: "cdbass"
+    vcenter_password: "N35b32IM"
+    vcenter_hostname: "vc-irv.techlab.com"
+    vcenter_folder: "/Charter DBaaS Lab"
+    vm_template_name: "rac-oel-7.4-x86_64"
+    datacenter: "IRV Lab"
+    datastore: "[Pure_vmfs6_04]"
+    esxi: "esx04.techlab.com"
+    public_ip: "{{ lookup('nios_next_ip', '10.10.99.0/24', num=1, provider={'host': '10.10.96.86/', 'username': 'admin', 'password': 'Techno123!' }) }}"
+    ip_1: "{{ public_ip[0]}}"
+    Oct1: "{{ ip_1.split('.')[0] }}"
+    Oct2: "{{ ip_1.split('.')[1] }}"
+    Oct3: "{{ ip_1.split('.')[2] }}"
+    Oct4: "{{ ip_1.split('.')[3] }}"
+    ip_2: "{{ Oct1 }}.{{ Oct2 }}.{{ private_subnet }}.{{ Oct4 }}"
+    gateway_1: "{{ Oct1 }}.{{ Oct2 }}.{{ Oct3 }}.1"
+    gateway_2: "{{ Oct1 }}.{{ Oct2 }}.{{ private_subnet }}.1"
+
+
+  tasks:
+    ###NOTE: This python script requires the Requests python library to be installed
+    # - pip:
+    #   name:
+    #     - pyvmomi # Needed for vmware
+    #     - dnspython #Needed for Dig lookup (had to install this with pip3...)
+    #     - requests
+    #     - infoblox-client
+
+    - name: return the next available IP address for network 10.10.99.0/24 (vds-5k-core-vlan99) for Public and VIP Addresses
+      set_fact:
+        public_ipaddrs: "{{ lookup('nios_next_ip', '10.10.99.0/24', num=1, provider={'host': '10.10.96.86/', 'username': 'admin', 'password': 'Techno123!' }) }}"
+
+    # - debug:
+    #     var: "{{ip_1}}"
+
+    # - debug:
+    #     var: "{{ip_2}}"
+
+    # - debug:
+    #     var: "{{gateway_1}}"
+
+    # - debug:
+    #     var: "{{gateway_2}}"
+
+    - name: configure Scan IP A-Record for host
+      nios_a_record:
+        name: "{{ inventory_hostname }}.techlab.com"
+        ipv4: "{{ ip_1 }}"
+        state: present
+        provider: 
+          host: "{{ infoblox_host }}"
+          username: "{{ infoblox_username }}"
+          password: "{{ infoblox_password }}"
+      connection: local
+
+    - name: Create a virtual machine from a template ("{{ vm_clone_name }}")
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        folder: "{{ vcenter_folder }}"
+        name: "{{ inventory_hostname }}"
+        state: poweredon
+        template: "{{ vm_template_name }}"
+        datacenter: "{{ datacenter }}"
+        esxi_hostname: "{{ esxi }}"
+        #datastore: "{{ datastore }}"  # Can control which datastore to create the VM, Ansible 2.7+
+        #wait_for_ip_address: yes
+        disk:
+        - size_gb: 100  # The first two disks here need to match the first two disks of the template
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 60
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 80
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 70
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 30
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 30
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 30
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 16
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 16
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 16
+          type: thin
+          datastore: "{{ datastore }}"
+        - size_gb: 16
+          type: thin
+          datastore: "{{ datastore }}"
+
+        networks:
+          - name: "{{ network1 }}"
+            ip: "{{ ip_1 }}" # This takes the IP from the Dig NSLookup
+        #     ip: 192.168.10.11
+            netmask: 255.255.255.0
+            gateway: "{{ gateway_1 }}"
+            dns_servers:
+              - 10.10.98.198
+              - 10.10.98.199
+            domain: techlab.com
+          - name: "{{ network2 }}"
+            ip: "{{ ip_2 }}"
+            netmask: 255.255.255.0
+            gateway: "{{ gateway_2 }}"
+            #domain: "{{}}"
+      delegate_to: localhost
+      register: deploy
+    #   with_together: 
+    #     - "{{python_script_output | json_query (pub_query)}}"
+    #     - "{{python_script_output | json_query (priv_query)}}"
+

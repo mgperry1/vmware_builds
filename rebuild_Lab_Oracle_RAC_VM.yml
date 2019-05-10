@@ -1,0 +1,188 @@
+# This ansible playbook will clone an Oracle RAC VM
+
+- hosts: all
+  connection: local
+  gather_facts: false
+  order: sorted
+  #serial: 1
+  # vars:
+  #   ansible_python_interpreter: "/usr/local/bin/python"
+  #   vcenter_hostname: "vc-irv.techlab.com"
+  #   vcenter_folder: "/Charter DBaaS Lab"
+  #   vm_template_name: "rac-oel-7.4-x86_64"
+  #   datastore: "[Pure_vmfs6_04]"
+  #   #datastore: "Pure_vmfs6_03" # Only works on Ansible 2.7+
+  #   datacenter: "IRV Lab"
+  #   esxi: "esx04.techlab.com"
+  #   nslookup_name: "{{ inventory_hostname}}"  # THE NAME OF THE VM TO BE DELETED AND RECREATED
+  #   vm_clone_name: "{{nslookup_name}}"  
+  #   vcenter_username: "cdbass"
+  #   vcenter_password: "N35b32IM"
+  #   network1: "vds-5k-core-vlan99"
+  #   network2: "vds-5k-core-vlan114"
+  #   network2_subnet: "{{ network2[-3:]}}"
+    
+  tasks:
+    - pip:
+        name:
+          - pyvmomi # Needed for vmware
+          - dnspython #Needed for Dig lookup (had to install this with pip3...)
+          - requests
+          #- infoblox-client
+        #virtualenv: "/Users/seanwilkie/Documents/venvs/charter-dbaas"
+
+    - set_fact: creationdate="{{lookup('pipe','date "+%Y/%m/%d %H:%M"')}}"
+
+    - name: Simple A record (IPV4 address) lookup for "{{ nslookup_name }}"
+      debug: msg="{{ lookup('dig', "{{ nslookup_name }}")}}"
+      register: ns
+
+    - debug: var=ns.msg
+
+    - set_fact: ip_1="{{ ns.msg}}"
+      when: ip_1 is not defined
+
+    - set_fact: Oct1="{{ ip_1.split('.')[0] }}"
+      when: Oct1 is not defined
+
+    - set_fact: Oct2="{{ ip_1.split('.')[1] }}"
+      when: Oct2 is not defined
+
+    - set_fact: Oct3="{{ ip_1.split('.')[2] }}"
+      when: Oct3 is not defined
+
+    - set_fact: Oct4="{{ ip_1.split('.')[3] }}"
+      when: Oct4 is not defined
+
+    - set_fact: ip_2={{ Oct1 }}.{{ Oct2 }}.{{ network2_subnet }}.{{ Oct4 }}
+      when: ip_2 is not defined
+
+    - set_fact: gateway_1={{ Oct1 }}.{{ Oct2 }}.{{ Oct3 }}.1
+      when: gateway_1 is not defined
+
+    - set_fact: gateway_2={{ Oct1 }}.{{ Oct2 }}.{{ network2_subnet }}.1
+      when: gateway_2 is not defined  
+
+    # - name: Set the state of a virtual machine to off to be deleted
+    #   vmware_guest_powerstate:
+    #     hostname: "{{ vcenter_hostname }}"
+    #     username: "{{ vcenter_username }}"
+    #     password: "{{ vcenter_password }}"
+    #     validate_certs: no
+    #     folder: "{{ vcenter_folder }}"
+    #     name: "{{ inventory_hostname }}"
+    #     state: powered-off
+    #   delegate_to: localhost
+
+    - name: Remove "{{ vm_clone_name }}"
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        #cluster: "DC1_C1"
+        name: "{{ vm_clone_name }}"
+        force: yes
+        state: absent
+      delegate_to: localhost
+      register: facts
+
+    - debug: var=facts
+
+    - name: Create a virtual machine from a template ("{{ vm_clone_name }}")
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        folder: "{{ vcenter_folder }}"
+        name: "{{ vm_clone_name }}"
+        state: present
+        template: "{{ vm_template_name }}"
+        datacenter: "{{ datacenter }}"
+        esxi_hostname: "{{ esxi }}"
+        #datastore: "{{ datastore }}"
+        #wait_for_ip_address: yes
+        networks:
+          - name: "{{ network1 }}"
+            ip: "{{ ip_1 }}" # This takes the IP from the Dig NSLookup
+        #     ip: 192.168.10.11
+            netmask: 255.255.255.0
+            gateway: "{{ gateway_1 }}"
+            dns_servers:
+              - 10.10.98.198
+              - 10.10.98.199
+            domain: techlab.com
+          - name: "{{ network2 }}"
+            ip: "{{ ip_2 }}"
+            netmask: 255.255.255.0
+            gateway: "{{ gateway_2 }}"
+      
+    #   # delegate_to: localhost
+    #   # register: deploy
+    #   #   disk:
+    #   #     - size_gb: "{{ vm_size }}"
+    #   #       type: eagerzeroedthick
+    #   #       datastore: "{{ datastore }}"
+    #   #   hardware:
+    #   #     memory_mb: 512
+    #   #     num_cpus: 4
+    #   #     num_cpu_cores_per_socket: 2
+    #   #     scsi: LSI Logic SAS
+    #   #     memory_reservation: 512
+    #   #     memory_reservation_lock: True
+    #   #     mem_limit: 8096
+    #   #     mem_reservation: 409 6
+    #   #              cpu_limit: 8096
+    #   #     cpu_reservation: 4096
+    #   #     max_connections: 5
+    #   #     hotadd_cpu: True
+    #   #     hotremove_cpu: True
+    #   #     hotadd_memory: False
+    #   #     version: 12 # Hardware version of virtual machine
+    #   #     boot_firmware: "efi"
+    #   #   cdrom:
+    #   #     type: iso
+    #   #     iso_path: "[datastore1] livecd.iso"
+
+
+    #   # - name: add to ansible hosts file
+    #   #   lineinfile:
+    #   #     dest: /etc/ansible/hosts
+    #   #     insertafter: '^\[{{ ansible_host_group }}\]'
+    #   #     line: '{{ item }}'
+    #   #   with_items: '{{play_hosts}}'
+    #   #   run_once: true
+    # - name: output vCenter response
+    #   debug:
+    #     var: deploy
+
+
+    # - name: Register nslookup hostname result
+    #   command: nslookup "{{ nslookup_name }}"
+    #   register: ns
+
+    # - debug: var=ns
+
+    # - name: Run PowerCLI script to create VMDKs and Connect to Nodes
+    #   local_action: raw pwsh ./rebuild_lab_Oracle_RAC_VMDK.ps1 -MasterNode "{{ inventory_hostname }}" -vcuser "{{ vcenter_username }}" -vcpass "{{ vcenter_password }}" -DataStore "{{ datastore }}"
+    #   when: >
+    #         inventory_hostname in groups['cluster_master_nodes']
+
+    - name: Run Shell script (that runs PowerShell Core script...) to create VMDKs and Connect to Nodes
+      delegate_to: localhost
+      local_action: raw ./run_script.sh "{{ inventory_hostname }}" "{{ vcenter_username }}" "{{ vcenter_password }}" "{{ datastore }}"
+      when: inventory_hostname == master_node
+
+
+    - name: Set the state of a virtual machine to on
+      vmware_guest_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        folder: "{{ vcenter_folder }}"
+        name: "{{ inventory_hostname }}"
+        state: powered-on
+      delegate_to: localhost
+      #register: deploy

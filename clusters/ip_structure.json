@@ -1,0 +1,96 @@
+{
+    "VMs": {
+        "private": [
+            {
+                "Gateway": "10.10.114.1", 
+                "Hostname": "oralab-test-8.techlab.com", 
+                "IP": "10.10.114.4", 
+                "IP_Type": "private", 
+                "VM_Name": "oralab-test-8"
+            }, 
+            {
+                "Gateway": "10.10.114.1", 
+                "Hostname": "oralab-test-9.techlab.com", 
+                "IP": "10.10.114.5", 
+                "IP_Type": "private", 
+                "VM_Name": "oralab-test-9"
+            }, 
+            {
+                "Gateway": "10.10.114.1", 
+                "Hostname": "oralab-test-7.techlab.com", 
+                "IP": "10.10.114.6", 
+                "IP_Type": "private", 
+                "VM_Name": "oralab-test-7"
+            }
+        ], 
+        "public": [
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-8.techlab.com", 
+                "IP": "10.10.99.4", 
+                "IP_Type": "public", 
+                "VM_Name": "oralab-test-8"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-9.techlab.com", 
+                "IP": "10.10.99.5", 
+                "IP_Type": "public", 
+                "VM_Name": "oralab-test-9"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-7.techlab.com", 
+                "IP": "10.10.99.6", 
+                "IP_Type": "public", 
+                "VM_Name": "oralab-test-7"
+            }
+        ], 
+        "scan": [
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "scan-testing2.techlab.com", 
+                "IP": "10.10.99.20", 
+                "IP_Type": "scan", 
+                "VM_Name": "oralab-test-8"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "scan-testing2.techlab.com", 
+                "IP": "10.10.99.30", 
+                "IP_Type": "scan", 
+                "VM_Name": "oralab-test-9"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "scan-testing2.techlab.com", 
+                "IP": "10.10.99.31", 
+                "IP_Type": "scan", 
+                "VM_Name": "oralab-test-7"
+            }
+        ], 
+        "vip": [
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-8-vip.techlab.com", 
+                "IP": "10.10.99.7", 
+                "IP_Type": "vip", 
+                "VM_Name": "oralab-test-8"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-9-vip.techlab.com", 
+                "IP": "10.10.99.8", 
+                "IP_Type": "vip", 
+                "VM_Name": "oralab-test-9"
+            }, 
+            {
+                "Gateway": "10.10.99.1", 
+                "Hostname": "oralab-test-7-vip.techlab.com", 
+                "IP": "10.10.99.9", 
+                "IP_Type": "vip", 
+                "VM_Name": "oralab-test-7"
+            }
+        ]
+    }
+}

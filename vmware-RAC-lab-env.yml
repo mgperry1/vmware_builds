@@ -1,0 +1,25 @@
+[vmware]
+vcenter01 ansible_host=vc-irv.techlab.com
+
+[cluster_master_nodes]
+oralab1
+# oralab4
+# oralab7
+
+[cluster1_nodes]
+oralab2
+oralab3
+
+[cluster2_nodes]
+# oralab5
+# oralab6
+
+[cluster3_nodes]
+# oralab8
+# oralab9
+
+[clusters:children]
+cluster_master_nodes
+cluster1_nodes
+# cluster2_nodes
+# cluster3_nodes

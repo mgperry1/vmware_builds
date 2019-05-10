@@ -1,0 +1,139 @@
+- hosts: all
+  connection: local
+  gather_facts: false
+  order: sorted
+  vars:
+    #ansible_python_interpreter: "/usr/local/bin/python"
+    infoblox_user: "admin"
+    infoblox_pass: "Techno123!"
+    infoblox_host: "10.10.96.86"
+    subnet: "10.10.99.0"
+    private_subnet: "114"
+    network1: "vds-5k-core-vlan99"
+    network2: "vds-5k-core-vlan114"
+    python_input_file: "ip_structure.json"
+    vcenter_username: "cdbass"
+    vcenter_password: "N35b32IM"
+    vcenter_hostname: "vc-irv.techlab.com"
+    vcenter_folder: "/Charter DBaaS Lab"
+    vm_template_name: "rac-oel-7.4-x86_64"
+    datacenter: "IRV Lab"
+    datastore: "[Pure_vmfs6_04]"
+    esxi: "esx04.techlab.com"
+    test_query: "VMs.*[?VM_Name == '{{ inventory_hostname }}'].{VM_Name: VM_Name, IP_Type: IP_Type, Hostname: Hostname, IP: IP, Gateway: Gateway}"
+    vip_query: "VMs.vip[?VM_Name == '{{ inventory_hostname }}'].{VM_Name: VM_Name, IP_Type: IP_Type, Hostname: Hostname, IP: IP, Gateway: Gateway}"
+    pub_query: "VMs.public[?VM_Name == '{{ inventory_hostname }}'].{VM_Name: VM_Name, IP_Type: IP_Type, Hostname: Hostname, IP: IP, Gateway: Gateway}"
+    priv_query: "VMs.private[?VM_Name == '{{ inventory_hostname }}'].{VM_Name: VM_Name, IP_Type: IP_Type, Hostname: Hostname, IP: IP, Gateway: Gateway}"
+    scan_query: "VMs.scan[?VM_Name == '{{ inventory_hostname }}'].{VM_Name: VM_Name, IP_Type: IP_Type, Hostname: Hostname, IP: IP, Gateway: Gateway}"
+    #cluster_name: "scan-testing1"
+    cluster_nodes: "{{ ansible_play_hosts }}"
+    master_node: "{{ ansible_play_hosts | first }}"
+    slave_nodes: "{{ cluster_nodes | difference(master_node) }}"
+    slave_1: "{{ slave_nodes[0] | default('')}}"
+    slave_2: "{{ slave_nodes[1] | default('')}}"
+    slave_3: "{{ slave_nodes[2] | default('')}}"
+    slave_4: "{{ slave_nodes[3] | default('')}}"
+    slave_5: "{{ slave_nodes[4] | default('')}}"
+
+
+  tasks:
+
+    ###NOTE: This python script requires the Requests python library to be installed
+    # ORDER OF VARS: Infoblox_username, infoblox_password, infoblox_host/ip, public_subnet, rac_cluster list, private_subnet, name_for_scan_IPs/ClusterName
+    - local_action: raw python python_iblox_orac_cluster.py "{{ infoblox_user }}" "{{ infoblox_pass }}" "{{ infoblox_host }}" "{{ subnet }}" "{{ cluster_nodes }}" "{{ private_subnet }}" "{{ cluster_name }}"
+      register: python_script
+      run_once: true
+
+    - name: lookup json file from python script
+      include_vars:
+        file: "./clusters/{{ python_input_file }}"
+        name: python_script_output
+      run_once: true
+
+    - name: Print ip_structure.json file
+      debug:
+        var: python_script_output | json_query ('IPs.public.*') #.['scan-oratest-2.techlab.com']
+      run_once: true
+      register: pub_ips
+
+    # - name: Test SCAN_QUERY
+    #   debug:
+    #     msg: "{{ item.0['IP_Type'] }} - {{ item.1['IP_Type'] }} - {{ item.2['IP_Type'] }} - {{ item.3['IP_Type'] }}
+    #           {{ item.0['IP'] }} - {{ item.1['IP'] }} - {{ item.2['IP'] }} - {{ item.3['IP'] }}"
+    #   #run_once: true
+    #   with_together: 
+    #     - "{{python_script_output | json_query (pub_query)}}"
+    #     - "{{python_script_output | json_query (priv_query)}}"
+    #     - "{{python_script_output | json_query (vip_query)}}"
+    #     - "{{python_script_output | json_query (scan_query)}}"
+    #   register: VM_IPs
+
+    - name: Get VM Names
+      debug:
+        msg: "{{ slave_nodes }}"
+      run_once: true
+      register: slave_node_list
+
+    - name: Get VM Master Name
+      debug:
+        msg: "{{ master_node }}"
+      run_once: true      
+
+    - name: Create a virtual machine from a template ("{{ vm_clone_name }}")
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: no
+        folder: "{{ vcenter_folder }}"
+        name: "{{ item.0['VM_Name'] }}"
+        state: present
+        template: "{{ vm_template_name }}"
+        datacenter: "{{ datacenter }}"
+        esxi_hostname: "{{ esxi }}"
+        #datastore: "{{ datastore }}"
+        #wait_for_ip_address: yes
+        networks:
+          - name: "{{ network1 }}"
+            ip: "{{ item.0['IP'] }}" # This takes the IP from the Dig NSLookup
+            netmask: 255.255.255.0
+            gateway: "{{ item.0['Gateway'] }}"
+            dns_servers:
+              - 10.10.98.198
+              - 10.10.98.199
+            domain: techlab.com
+          - name: "{{ network2 }}"
+            ip: "{{ item.1['IP'] }}"
+            netmask: 255.255.255.0
+            gateway: "{{ item.1['Gateway'] }}"
+          # - name: "{{ network1 }}"
+          #   ip: "{{ item.2['IP'] }}"
+          #   netmask: 255.255.255.0
+          #   gateway: "{{ item.2['Gateway'] }}"
+          # - name: "{{ network1 }}"
+          #   ip: "{{ item.3['IP'] }}"
+          #   netmask: 255.255.255.0
+          #   gateway: "{{ item.3['Gateway'] }}"
+      #run_once: true
+      with_together: 
+        - "{{python_script_output | json_query (pub_query)}}"
+        - "{{python_script_output | json_query (priv_query)}}"
+        #- "{{python_script_output | json_query (vip_query)}}"
+        #- "{{python_script_output | json_query (scan_query)}}"
+
+    - name: Run Shell script (that runs PowerShell Core script...) to create VMDKs and Connect to Nodes
+      delegate_to: localhost
+      local_action: raw ./run_script.sh "{{ inventory_hostname }}" "{{ vcenter_username }}" "{{ vcenter_password }}" "{{ datastore }}" "{{ slave_1}}","{{ slave_2 }}","{{ slave_3 }}","{{ slave_4 }}","{{ slave_5 }}"
+      when: inventory_hostname == master_node
+
+    # - name: Set the state of a virtual machine to on
+    #   vmware_guest_powerstate:
+    #     hostname: "{{ vcenter_hostname }}"
+    #     username: "{{ vcenter_username }}"
+    #     password: "{{ vcenter_password }}"
+    #     validate_certs: no
+    #     folder: "{{ vcenter_folder }}"
+    #     name: "{{ inventory_hostname }}"
+    #     state: powered-on
+    #   delegate_to: localhost
+    #   register: deploy
